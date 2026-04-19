@@ -53,10 +53,18 @@ export function generateDiagramData(elements, elementForces, loads, analysisType
     const pointLoads = elLoads
       .filter(l => l.type === 'point_load')
       .map(l => ({
-        position: l.a || L / 2,
+        position: l.a !== undefined ? l.a : L / 2,
         magnitude: Math.abs(l.magnitude)
       }))
       .sort((a, b) => a.position - b.position);
+
+    const udlLoads = elLoads
+      .filter(l => l.type === 'UDL')
+      .map(l => ({
+        w: Math.abs(l.magnitude),
+        a: l.a !== undefined ? l.a : 0,
+        b: l.b !== undefined ? l.b : L
+      }));
 
     for (let i = 0; i <= numPoints; i++) {
       const x = i * dx;
@@ -65,37 +73,30 @@ export function generateDiagramData(elements, elementForces, loads, analysisType
       let V, M;
 
       if (analysisType === 'truss') {
-        // Truss: only axial forces, no shear or moment
         V = 0;
         M = 0;
         const N = Ni + (Nj - Ni) * (x / L);
         axialData.push({ x: globalX, value: N, elementId: el.id, localX: x });
-      } else if (hasUDL) {
-        // UDL: V(x) = Vi + w*x, M(x) = Mi + Vi*x + w*x²/2
-        V = -Vi - udlW * x;
-        M = Mi + (-Vi) * x - (udlW * x * x) / 2;
-
-        // Point load contributions
-        pointLoads.forEach(pl => {
-          if (x >= pl.position) {
-            V += pl.magnitude;
-            M -= pl.magnitude * (x - pl.position);
-          }
-        });
-      } else if (hasTriangular) {
-        // Triangular: w(x) = triW * x / L
-        V = -Vi - (triW * x * x) / (2 * L);
-        M = Mi + (-Vi) * x - (triW * x * x * x) / (6 * L);
       } else {
-        // No distributed load: linear SFD between point loads
+        // Base from near-end interactions
         V = -Vi;
         M = Mi + (-Vi) * x;
 
-        // Point load contributions
+        // Point load shear/moment drops
         pointLoads.forEach(pl => {
           if (x >= pl.position) {
-            V += pl.magnitude;
+            V += pl.magnitude; 
             M -= pl.magnitude * (x - pl.position);
+          }
+        });
+
+        // Partial & Full UDL shear/moment drops
+        udlLoads.forEach(udl => {
+          if (x > udl.a) {
+            const span = Math.min(x, udl.b) - udl.a;
+            const wTotal = udl.w * span;
+            V -= wTotal;
+            M -= wTotal * (x - (udl.a + span / 2));
           }
         });
       }

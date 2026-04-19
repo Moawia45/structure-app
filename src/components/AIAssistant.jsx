@@ -8,7 +8,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 const AIAssistant = () => {
-  const { isAIAssistantOpen, toggleAIAssistant, importStructure, setStructureType, setAnalysisType, clearAll, groqApiKey, setGroqApiKey } = useStructureStore();
+  const { isAIAssistantOpen, toggleAIAssistant, importStructure, setStructureType, setAnalysisType, clearAll, groqApiKey, setGroqApiKey, runAnalysis } = useStructureStore();
   const ENV_KEY = import.meta.env.VITE_GROQ_API_KEY;
   const [messages, setMessages] = useState([
     { role: 'ai', content: 'Upload an image or PDF of a structural diagram, and ask me any questions about it!' }
@@ -32,24 +32,81 @@ const AIAssistant = () => {
 
     setIsLoading(true);
     try {
+      let base64;
       if (file.type === 'application/pdf') {
-        const base64 = await convertPdfToBase64(file);
-        setSelectedImageBase64(base64);
-        setImagePreview(`data:image/jpeg;base64,${base64}`);
+        base64 = await convertPdfToBase64(file);
       } else if (file.type.startsWith('image/')) {
-        const base64 = await fileToBase64(file);
-        setSelectedImageBase64(base64);
-        setImagePreview(`data:image/jpeg;base64,${base64}`);
+        base64 = await fileToBase64(file);
       } else {
         alert("Please upload a valid Image or PDF file.");
+        setIsLoading(false);
+        return;
       }
+      
+      setSelectedImageBase64(base64);
+      setImagePreview(`data:image/jpeg;base64,${base64}`);
+      
+      // Auto-Trigger Extraction
+      if (groqApiKey || ENV_KEY) {
+        autoExtractDiagram(base64);
+      }
+
     } catch (err) {
       console.error(err);
       alert("Error processing file: " + err.message);
-    } finally {
       setIsLoading(false);
+    } finally {
       if(fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  const autoExtractDiagram = async (base64) => {
+    setMessages(prev => [...prev, { role: 'ai', content: '*Scanning diagram and auto-calculating...*' }]);
+    try {
+      const activeKey = groqApiKey || ENV_KEY;
+      const response = await askAboutDiagram(base64, "Please extract the full JSON structural parameters for this diagram accurately based on the dimensions written. Provide ONLY the JSON if possible.", activeKey);
+      
+      const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
+      if (jsonMatch && jsonMatch[1]) {
+        const parsed = JSON.parse(jsonMatch[1]);
+        if (parsed.nodes && parsed.elements) {
+            clearAll();
+            if (parsed.structureType) {
+              setStructureType(parsed.structureType);
+              if (parsed.structureType === 'truss') setAnalysisType('truss');
+              else if (parsed.structureType === 'frame') setAnalysisType('full_frame');
+              else setAnalysisType('moment_only');
+            }
+            importStructure(parsed);
+            
+            // Auto Trigger Analysis
+            setTimeout(() => {
+              const store = useStructureStore.getState();
+              store.runAnalysis();
+              
+              setTimeout(() => {
+                const updatedStore = useStructureStore.getState();
+                if (updatedStore.hasResults) {
+                  if (!updatedStore.showSFD) updatedStore.toggleSFD();
+                  if (!updatedStore.showBMD) updatedStore.toggleBMD();
+                }
+              }, 200);
+
+            }, 500);
+
+            setMessages(prev => [
+              ...prev.slice(0, -1), 
+              { role: 'ai', content: "✅ **Diagram Auto-Imported & Analyzed!**\n\nThe diagram was successfully parsed and solved. SFD and BMD overlays are active on the Canvas.\n\n*Have any conceptual questions about this structure?*" }
+            ]);
+            setIsLoading(false);
+            return;
+        }
+      }
+      setMessages(prev => [...prev.slice(0, -1), { role: 'ai', content: "⚠️ I analyzed the image but couldn't parse the structure perfectly. You can still ask me manual questions about it!" }]);
+    } catch (err) {
+      setMessages(prev => [...prev.slice(0, -1), { role: 'ai', content: `Error: ${err.message}` }]);
+    }
+    setIsLoading(false);
   };
 
   const convertPdfToBase64 = async (file) => {

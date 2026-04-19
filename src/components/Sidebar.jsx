@@ -50,10 +50,11 @@ const Sidebar = () => {
       };
       
       if (newLoadForm.type === 'point_load' || newLoadForm.type === 'moment') {
-        if (newLoadForm.node_id) loadObj.node_id = parseInt(newLoadForm.node_id);
-        else if (newLoadForm.element_id && newLoadForm.a !== '') {
-          loadObj.element_id = parseInt(newLoadForm.element_id);
-          loadObj.a = parseFloat(newLoadForm.a);
+        if (newLoadForm.node_id) {
+            loadObj.node_id = parseInt(newLoadForm.node_id);
+        } else if (newLoadForm.element_id && newLoadForm.a !== '') {
+            loadObj.element_id = parseInt(newLoadForm.element_id);
+            loadObj.a = parseFloat(newLoadForm.a);
         }
       } else if (newLoadForm.type === 'UDL' && newLoadForm.element_id) {
         loadObj.element_id = parseInt(newLoadForm.element_id);
@@ -213,7 +214,7 @@ const Sidebar = () => {
                 </select>
               </div>
 
-              {newLoadForm.type === 'point_load' ? (
+              {newLoadForm.type === 'point_load' || newLoadForm.type === 'moment' ? (
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-slate-500">Assign To</label>
@@ -225,14 +226,43 @@ const Sidebar = () => {
                       <option value="elem">Element</option>
                     </select>
                   </div>
-                  {newLoadForm.node_id !== undefined && (
+                  {newLoadForm.node_id !== undefined && newLoadForm.element_id === '' && (
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-500">Select Entity</label>
-                      <input type="number" className="input-field" placeholder="ID" onChange={e => setNewLoadForm({...newLoadForm, node_id: e.target.value})} />
+                      <label className="text-xs font-semibold text-slate-500">Node ID</label>
+                      <input type="number" className="input-field" placeholder="ID" value={newLoadForm.node_id} onChange={e => setNewLoadForm({...newLoadForm, node_id: e.target.value})} />
+                    </div>
+                  )}
+                  {newLoadForm.element_id !== undefined && newLoadForm.node_id === '' && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-500">Element ID</label>
+                      <input type="number" className="input-field" placeholder="ID" value={newLoadForm.element_id} onChange={e => setNewLoadForm({...newLoadForm, element_id: e.target.value})} />
                     </div>
                   )}
                 </div>
-              ) : null}
+              ) : (
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-500">Assign To Element ID</label>
+                    <input type="number" className="input-field" placeholder="ID" value={newLoadForm.element_id} onChange={e => setNewLoadForm({...newLoadForm, element_id: e.target.value})} />
+                  </div>
+                </div>
+              )}
+
+              {/* Distances (a and b) for Elements */}
+              {newLoadForm.element_id !== '' && (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-500">Dist 'a' ({units.length})</label>
+                    <input type="number" step="any" className="input-field" placeholder="Start from i" value={newLoadForm.a} onChange={e => setNewLoadForm({...newLoadForm, a: e.target.value})} />
+                  </div>
+                  {newLoadForm.type === 'UDL' && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-500">Dist 'b' ({units.length})</label>
+                      <input type="number" step="any" className="input-field" placeholder="End to j" value={newLoadForm.b} onChange={e => setNewLoadForm({...newLoadForm, b: e.target.value})} />
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">

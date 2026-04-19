@@ -76,6 +76,14 @@ const CanvasArea = () => {
                   text={`E${el.id}`}
                   fill={strokeColor}
                   fontSize={12}
+                  fontStyle="bold"
+                />
+                <Text
+                  x={(mapX(nodeI.x) + mapX(nodeJ.x)) / 2 + 10}
+                  y={(mapY(nodeI.y) + mapY(nodeJ.y)) / 2 - 5}
+                  text={`${Math.hypot(nodeJ.x - nodeI.x, nodeJ.y - nodeI.y).toFixed(1)} ${units.length}`}
+                  fill="#64748b"
+                  fontSize={10}
                 />
               </Group>
             );
@@ -138,7 +146,7 @@ const CanvasArea = () => {
               const nj = nodes.find(n => n.id === el.j);
               if (!ni || !nj) return null;
               const L = Math.hypot(nj.x - ni.x, nj.y - ni.y);
-              const ratio = load.a / L;
+              const ratio = (load.a !== undefined ? load.a : L/2) / L;
               const lx = ni.x + (nj.x - ni.x) * ratio;
               const ly = ni.y + (nj.y - ni.y) * ratio;
               const isDown = load.direction === 'down';
@@ -163,13 +171,22 @@ const CanvasArea = () => {
                const ni = nodes.find(n => n.id === el.i);
                const nj = nodes.find(n => n.id === el.j);
                if (!ni || !nj) return null;
+               
+               const L = Math.hypot(nj.x - ni.x, nj.y - ni.y);
+               const ratioA = (load.a !== undefined ? load.a : 0) / L;
+               const ratioB = (load.b !== undefined ? load.b : L) / L;
+               
+               const lxStart = ni.x + (nj.x - ni.x) * ratioA;
+               const lyStart = ni.y + (nj.y - ni.y) * ratioA;
+               const lxEnd = ni.x + (nj.x - ni.x) * ratioB;
+               const lyEnd = ni.y + (nj.y - ni.y) * ratioB;
+
                const isDown = load.direction === 'down' || !load.direction;
                const dirSign = isDown ? 1 : -1;
-               const pxi = mapX(ni.x);
-               const pyi = mapY(ni.y);
-               const pxj = mapX(nj.x);
-               const pyj = mapY(nj.y);
-               // Simple approximation for parallel UDL
+               const pxi = mapX(lxStart);
+               const pyi = mapY(lyStart);
+               const pxj = mapX(lxEnd);
+               const pyj = mapY(lyEnd);
                return (
                  <Group key={`load-${load.id}`}>
                    <Line points={[pxi, pyi + (-20 * dirSign), pxj, pyj + (-20 * dirSign)]} stroke="#f97316" strokeWidth={2} />
