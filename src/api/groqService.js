@@ -16,7 +16,7 @@ const ENV_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
  */
 export async function analyzeSketch(base64Image, apiKey = ENV_API_KEY) {
   if (!apiKey) {
-    throw new Error('Groq API key is missing. Please set VITE_GROQ_API_KEY in your .env file.');
+    throw new Error('Groq API key is missing. Please enter it in the AI Assistant panel or set VITE_GROQ_API_KEY in your Vercel settings.');
   }
 
   const response = await fetch(GROQ_API_URL, {
@@ -149,7 +149,7 @@ export function fileToBase64(file) {
  */
 export async function askAboutDiagram(base64Image, question, apiKey = ENV_API_KEY) {
   if (!apiKey) {
-    throw new Error('Groq API key is missing. Please set VITE_GROQ_API_KEY in your .env file.');
+    throw new Error('Groq API key is missing. Please enter it in the AI Assistant panel or set VITE_GROQ_API_KEY in your Vercel settings.');
   }
 
   const response = await fetch(GROQ_API_URL, {

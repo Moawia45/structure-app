@@ -8,7 +8,8 @@ import * as pdfjsLib from 'pdfjs-dist';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 const AIAssistant = () => {
-  const { isAIAssistantOpen, toggleAIAssistant, importStructure, setStructureType, setAnalysisType, clearAll } = useStructureStore();
+  const { isAIAssistantOpen, toggleAIAssistant, importStructure, setStructureType, setAnalysisType, clearAll, groqApiKey, setGroqApiKey } = useStructureStore();
+  const ENV_KEY = import.meta.env.VITE_GROQ_API_KEY;
   const [messages, setMessages] = useState([
     { role: 'ai', content: 'Upload an image or PDF of a structural diagram, and ask me any questions about it!' }
   ]);
@@ -71,6 +72,10 @@ const AIAssistant = () => {
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !selectedImageBase64) return;
+    if (!groqApiKey && !ENV_KEY) {
+      alert("Please enter a Groq API Key first or add it to .env or Vercel.");
+      return;
+    }
 
     const currentMsg = inputMessage;
     setInputMessage('');
@@ -78,7 +83,8 @@ const AIAssistant = () => {
     setIsLoading(true);
 
     try {
-      const response = await askAboutDiagram(selectedImageBase64, currentMsg);
+      const activeKey = groqApiKey || ENV_KEY;
+      const response = await askAboutDiagram(selectedImageBase64, currentMsg, activeKey);
       
       // Parse out JSON if appended
       let cleanedResponse = response;
@@ -123,6 +129,26 @@ const AIAssistant = () => {
           <X size={20} />
         </button>
       </div>
+
+      {/* API Key Input Fallback */}
+      {!ENV_KEY && !groqApiKey && (
+        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-xs border-b border-blue-100 dark:border-blue-800 flex flex-col gap-2">
+          <p className="text-blue-800 dark:text-blue-300 font-medium flex items-center gap-2">
+            <Key size={14}/> Groq API Key Required
+          </p>
+          <input 
+            type="password" 
+            placeholder="gsk_..."
+            className="input-field py-1 px-2 w-full text-xs"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                setGroqApiKey(e.target.value);
+              }
+            }}
+            onBlur={(e) => setGroqApiKey(e.target.value)}
+          />
+        </div>
+      )}
 
       {/* Header */}
       <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-800/20 flex flex-col items-center gap-2">
