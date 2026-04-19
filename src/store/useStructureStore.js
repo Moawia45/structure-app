@@ -228,15 +228,24 @@ const useStructureStore = create((set, get) => ({
   setGroqApiKey: (key) => set({ groqApiKey: key }),
 
   // ===== ACTIONS: Import / Clear =====
-  importStructure: (data) => set({
-    nodes: data.nodes || [],
-    elements: data.elements || [],
-    loads: data.loads || [],
-    structureType: data.structureType || 'beam',
-    analysisType: data.analysisType || 'moment_only',
-    results: null,
-    hasResults: false,
-    error: null,
+  importStructure: (data) => set((state) => {
+    const sType = data.structureType || 'beam';
+    let aType = data.analysisType;
+    if (!aType) {
+      if (sType === 'truss') aType = 'truss';
+      else if (sType === 'frame') aType = 'full_frame';
+      else aType = 'moment_only';
+    }
+    return {
+      nodes: data.nodes || [],
+      elements: data.elements || [],
+      loads: data.loads || [],
+      structureType: sType,
+      analysisType: aType,
+      results: null,
+      hasResults: false,
+      error: null,
+    };
   }),
 
   clearAll: () => set({
