@@ -3,7 +3,7 @@ import { Stage, Layer, Circle, Line, Text, Group, RegularPolygon, Arrow } from '
 import useStructureStore from '../store/useStructureStore';
 
 const CanvasArea = () => {
-  const { nodes, elements, theme, units } = useStructureStore();
+  const { nodes, elements, loads, theme, units, showSFD, showBMD, results } = useStructureStore();
   const containerRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [scale, setScale] = useState(1);
@@ -109,6 +109,142 @@ const CanvasArea = () => {
               />
             </Group>
           ))}
+
+          {/* Loads */}
+          {loads.map(load => {
+            if (load.type === 'point_load' && load.node_id) {
+              const node = nodes.find(n => n.id === load.node_id);
+              if (!node) return null;
+              const isDown = load.direction === 'down';
+              const directionSign = isDown ? 1 : -1;
+              return (
+                <Group key={`load-${load.id}`} x={mapX(node.x)} y={mapY(node.y)}>
+                  <Arrow
+                    points={[0, -40 * directionSign, 0, -10 * directionSign]}
+                    stroke="#ef4444"
+                    fill="#ef4444"
+                    strokeWidth={3}
+                    pointerLength={10}
+                    pointerWidth={10}
+                  />
+                  <Text text={`${load.magnitude} ${units.force}`} fill="#ef4444" fontSize={12} x={10} y={-45 * directionSign} />
+                </Group>
+              );
+            }
+            if (load.type === 'point_load' && load.element_id) {
+              const el = elements.find(e => e.id === load.element_id);
+              if (!el) return null;
+              const ni = nodes.find(n => n.id === el.i);
+              const nj = nodes.find(n => n.id === el.j);
+              if (!ni || !nj) return null;
+              const L = Math.hypot(nj.x - ni.x, nj.y - ni.y);
+              const ratio = load.a / L;
+              const lx = ni.x + (nj.x - ni.x) * ratio;
+              const ly = ni.y + (nj.y - ni.y) * ratio;
+              const isDown = load.direction === 'down';
+              const directionSign = isDown ? 1 : -1;
+              return (
+                <Group key={`load-${load.id}`} x={mapX(lx)} y={mapY(ly)}>
+                  <Arrow
+                    points={[0, -40 * directionSign, 0, -10 * directionSign]}
+                    stroke="#ef4444"
+                    fill="#ef4444"
+                    strokeWidth={3}
+                    pointerLength={10}
+                    pointerWidth={10}
+                  />
+                  <Text text={`${load.magnitude} ${units.force}`} fill="#ef4444" fontSize={12} x={10} y={-45 * directionSign} />
+                </Group>
+              );
+            }
+            if (load.type === 'UDL' && load.element_id) {
+               const el = elements.find(e => e.id === load.element_id);
+               if (!el) return null;
+               const ni = nodes.find(n => n.id === el.i);
+               const nj = nodes.find(n => n.id === el.j);
+               if (!ni || !nj) return null;
+               const isDown = load.direction === 'down' || !load.direction;
+               const dirSign = isDown ? 1 : -1;
+               const pxi = mapX(ni.x);
+               const pyi = mapY(ni.y);
+               const pxj = mapX(nj.x);
+               const pyj = mapY(nj.y);
+               // Simple approximation for parallel UDL
+               return (
+                 <Group key={`load-${load.id}`}>
+                   <Line points={[pxi, pyi + (-20 * dirSign), pxj, pyj + (-20 * dirSign)]} stroke="#f97316" strokeWidth={2} />
+                   <Arrow points={[pxi, pyi + (-20 * dirSign), pxi, pyi]} stroke="#f97316" fill="#f97316" pointerWidth={5} pointerLength={5} />
+                   <Arrow points={[pxj, pyj + (-20 * dirSign), pxj, pyj]} stroke="#f97316" fill="#f97316" pointerWidth={5} pointerLength={5} />
+                   <Text text={`${load.magnitude} ${units.force}/${units.length}`} fill="#f97316" fontSize={12} x={(pxi+pxj)/2} y={(pyi+pyj)/2 + (-35 * dirSign)} />
+                 </Group>
+               )
+            }
+            return null;
+          })}
+
+          {/* Diagrams (SFD / BMD) */}
+          {results?.diagramData && (showSFD || showBMD) && elements.map(el => {
+            const ni = nodes.find(n => n.id === el.i);
+            const nj = nodes.find(n => n.id === el.j);
+            if (!ni || !nj) return null;
+            
+            const dx = nj.x - ni.x;
+            const dy = nj.y - ni.y;
+            const L = Math.hypot(dx, dy);
+            // Angle of element relative to local horizontal
+            const angle = Math.atan2(dy, dx);
+            
+            // Map global points back to canvas coordinates
+            const transformPoint = (localX, perpValue) => {
+               // localX is along the element
+               // perpValue is perpendicular to the element
+               const ex = localX * Math.cos(angle) - perpValue * Math.sin(angle);
+               const ey = localX * Math.sin(angle) + perpValue * Math.cos(angle);
+               return [mapX(ni.x + ex), mapY(ni.y + ey)];
+            };
+
+            const sfdPts = results.diagramData.sfd.filter(d => d.elementId === el.id);
+            const bmdPts = results.diagramData.bmd.filter(d => d.elementId === el.id);
+
+            // Calculate scaling factors so diagrams look proportional (max 60px height)
+            const maxSfd = results.diagramData.criticalValues.sfd;
+            const sfdScale = Math.max(Math.abs(maxSfd.max), Math.abs(maxSfd.min)) > 0 ? 60 / Math.max(Math.abs(maxSfd.max), Math.abs(maxSfd.min)) : 1;
+            
+            const maxBmd = results.diagramData.criticalValues.bmd;
+            const bmdScale = Math.max(Math.abs(maxBmd.max), Math.abs(maxBmd.min)) > 0 ? 60 / Math.max(Math.abs(maxBmd.max), Math.abs(maxBmd.min)) : 1;
+
+            return (
+              <Group key={`diagrams-${el.id}`}>
+                {showSFD && sfdPts.length > 0 && (
+                  <Line 
+                    points={[
+                      ...transformPoint(0, 0),
+                      ...sfdPts.flatMap(pt => transformPoint(pt.localX, pt.value * sfdScale / scale)),
+                      ...transformPoint(L, 0)
+                    ]}
+                    fill="rgba(239, 68, 68, 0.4)" // Red
+                    stroke="#ef4444"
+                    strokeWidth={1}
+                    closed={true}
+                  />
+                )}
+                {showBMD && bmdPts.length > 0 && (
+                  <Line 
+                    points={[
+                      ...transformPoint(0, 0),
+                      // BMD is usually drawn on the tension side, which inverses the sign. Let's flip it by default.
+                      ...bmdPts.flatMap(pt => transformPoint(pt.localX, -pt.value * bmdScale / scale)),
+                      ...transformPoint(L, 0)
+                    ]}
+                    fill="rgba(59, 130, 246, 0.4)" // Blue
+                    stroke="#3b82f6"
+                    strokeWidth={1}
+                    closed={true}
+                  />
+                )}
+              </Group>
+            );
+          })}
         </Layer>
       </Stage>
       {nodes.length === 0 && (

@@ -1,6 +1,8 @@
 import React from 'react';
 import useStructureStore from '../store/useStructureStore';
-import { LayoutList, Download, ArrowRight } from 'lucide-react';
+import { LayoutList, Download, ArrowRight, Loader2 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 const ResultsPanel = () => {
   const { results, hasResults, units, activeTab, setActiveTab } = useStructureStore();
@@ -10,6 +12,78 @@ const ResultsPanel = () => {
   }
 
   const { deformations = [], reactions = [], elementForces = [] } = results;
+  const [isExporting, setIsExporting] = React.useState(false);
+
+  const handleExportPDF = async () => {
+    setIsExporting(true);
+    try {
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(22);
+      pdf.setTextColor(30, 64, 175); // Blue-800
+      pdf.text("Structural Analysis Report", pageWidth / 2, 20, { align: "center" });
+      
+      pdf.setFontSize(12);
+      pdf.setTextColor(100, 116, 139); // Slate-500
+      pdf.text("Created by Moawia Husnain", pageWidth / 2, 28, { align: "center" });
+      
+      pdf.setDrawColor(226, 232, 240); // Slate-200
+      pdf.line(20, 35, pageWidth - 20, 35);
+
+      // Try to capture Canvas
+      const canvasEl = document.querySelector('.konvajs-content canvas');
+      let currentY = 45;
+      
+      if (canvasEl) {
+        const canvasDataUrl = canvasEl.toDataURL('image/png');
+        // Scale to fit width
+        const imgProps = pdf.getImageProperties(canvasDataUrl);
+        const pdfWidth = pageWidth - 40;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(14);
+        pdf.setTextColor(15, 23, 42);
+        pdf.text("Structure & Load Diagram", 20, currentY);
+        currentY += 10;
+        
+        pdf.addImage(canvasDataUrl, 'PNG', 20, currentY, pdfWidth, pdfHeight);
+        currentY += pdfHeight + 15;
+      }
+
+      // We'll capture the tables directly from DOM
+      const tablesArea = document.getElementById('results-tables-area');
+      if (tablesArea) {
+        // We might run out of page space, add new page if needed
+        if (currentY > 200) {
+          pdf.addPage();
+          currentY = 20;
+        }
+        
+        // Hide scrollbars for capture
+        tablesArea.style.overflow = 'visible';
+        const canvas = await html2canvas(tablesArea, { scale: 2, backgroundColor: '#ffffff' });
+        tablesArea.style.overflow = 'auto'; // restore
+        
+        const imgData = canvas.toDataURL('image/png');
+        const imgProps = pdf.getImageProperties(imgData);
+        const pdfWidth = pageWidth - 40;
+        const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+        
+        pdf.addImage(imgData, 'PNG', 20, currentY, pdfWidth, pdfHeight);
+      }
+      
+      pdf.save("Structural_Analysis_Report.pdf");
+      
+    } catch (e) {
+      console.error("PDF Export failed", e);
+      alert("Failed to export PDF: " + e.message);
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   return (
     <div className="absolute inset-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl z-40 p-8 overflow-y-auto animate-fade-in flex flex-col gap-6 rounded-2xl m-4 ml-0 shadow-lg border border-slate-200 dark:border-slate-800">
@@ -21,11 +95,18 @@ const ResultsPanel = () => {
           <button className="btn-gradient bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 shadow-none px-4 py-2 text-sm flex items-center gap-2 rounded-lg" onClick={() => setActiveTab('input')}>
              <ArrowRight size={16} /> Back to Model
           </button>
-          <button className="btn-gradient px-4 py-2 text-sm flex items-center gap-2 rounded-lg">
-             <Download size={16} /> Export PDF
+          <button 
+            className="btn-gradient px-4 py-2 text-sm flex items-center gap-2 rounded-lg disabled:opacity-50"
+            onClick={handleExportPDF}
+            disabled={isExporting}
+          >
+             {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} 
+             {isExporting ? "Exporting..." : "Export PDF"}
           </button>
         </div>
       </div>
+
+      <div id="results-tables-area" className="flex flex-col gap-6 p-4 -m-4 bg-white dark:bg-slate-900 rounded-xl">
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="glass-card p-5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50">
@@ -127,6 +208,7 @@ const ResultsPanel = () => {
             </tbody>
           </table>
         </div>
+      </div>
       </div>
     </div>
   );

@@ -16,7 +16,11 @@ const Navbar = () => {
     isAnalyzing,
     hasResults,
     setActiveTab,
-    toggleAIAssistant
+    toggleAIAssistant,
+    showSFD,
+    showBMD,
+    toggleSFD,
+    toggleBMD
   } = useStructureStore();
 
   const handleExampleChange = (e) => {
@@ -104,6 +108,23 @@ const Navbar = () => {
           </button>
           
           <div className="w-px h-8 bg-slate-200 dark:bg-slate-700 mx-1"></div>
+
+          {hasResults && (
+            <div className="flex gap-1 mr-2 px-2 border-r border-slate-200 dark:border-slate-700">
+              <button 
+                onClick={toggleSFD}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${showSFD ? 'bg-red-500 text-white shadow-md shadow-red-500/20' : 'bg-slate-100 text-slate-500 hover:bg-red-100 hover:text-red-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-red-900/40'}`}
+              >
+                SFD
+              </button>
+              <button 
+                onClick={toggleBMD}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${showBMD ? 'bg-blue-600 text-white shadow-md shadow-blue-500/20' : 'bg-slate-100 text-slate-500 hover:bg-blue-100 hover:text-blue-600 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-blue-900/40'}`}
+              >
+                BMD
+              </button>
+            </div>
+          )}
 
           <button 
             className="p-2.5 rounded-xl text-blue-500 hover:bg-blue-50 hover:text-blue-600 dark:text-blue-400 dark:hover:bg-blue-900/30 transition-colors flex items-center gap-2"

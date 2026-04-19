@@ -8,7 +8,7 @@ import * as pdfjsLib from 'pdfjs-dist';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
 
 const AIAssistant = () => {
-  const { isAIAssistantOpen, toggleAIAssistant, groqApiKey, setGroqApiKey } = useStructureStore();
+  const { isAIAssistantOpen, toggleAIAssistant, importStructure, setStructureType, setAnalysisType, clearAll } = useStructureStore();
   const [messages, setMessages] = useState([
     { role: 'ai', content: 'Upload an image or PDF of a structural diagram, and ask me any questions about it!' }
   ]);
@@ -71,10 +71,6 @@ const AIAssistant = () => {
 
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || !selectedImageBase64) return;
-    if (!groqApiKey) {
-      alert("Please enter a Groq API Key first.");
-      return;
-    }
 
     const currentMsg = inputMessage;
     setInputMessage('');
@@ -82,8 +78,31 @@ const AIAssistant = () => {
     setIsLoading(true);
 
     try {
-      const response = await askAboutDiagram(selectedImageBase64, currentMsg, groqApiKey);
-      setMessages(prev => [...prev, { role: 'ai', content: response }]);
+      const response = await askAboutDiagram(selectedImageBase64, currentMsg);
+      
+      // Parse out JSON if appended
+      let cleanedResponse = response;
+      const jsonMatch = response.match(/```json\n([\s\S]*?)\n```/);
+      if (jsonMatch && jsonMatch[1]) {
+        try {
+          const parsed = JSON.parse(jsonMatch[1]);
+          if (parsed.nodes && parsed.elements) {
+             clearAll();
+             if (parsed.structureType) {
+               setStructureType(parsed.structureType);
+               if (parsed.structureType === 'truss') setAnalysisType('truss');
+               else if (parsed.structureType === 'frame') setAnalysisType('full_frame');
+               else setAnalysisType('moment_only');
+             }
+             importStructure(parsed);
+             cleanedResponse = response.replace(/```json\n[\s\S]*?\n```/, '').trim() + "\n\n*(I have automatically imported the diagram into the canvas!)*";
+          }
+        } catch (e) {
+          console.error("Failed to parse appended structure data", e);
+        }
+      }
+
+      setMessages(prev => [...prev, { role: 'ai', content: cleanedResponse }]);
     } catch (err) {
       setMessages(prev => [...prev, { role: 'ai', content: `Error: ${err.message}` }]);
     } finally {
@@ -105,27 +124,7 @@ const AIAssistant = () => {
         </button>
       </div>
 
-      {/* API Key Input */}
-      {!groqApiKey && (
-        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 text-xs border-b border-blue-100 dark:border-blue-800 flex flex-col gap-2">
-          <p className="text-blue-800 dark:text-blue-300 font-medium flex items-center gap-2">
-            <Key size={14}/> Groq API Key Required
-          </p>
-          <input 
-            type="password" 
-            placeholder="gsk_..."
-            className="input-field py-1 px-2 w-full text-xs"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                setGroqApiKey(e.target.value);
-              }
-            }}
-            onBlur={(e) => setGroqApiKey(e.target.value)}
-          />
-        </div>
-      )}
-
-      {/* Image Preview Area */}
+      {/* Header */}
       <div className="p-4 border-b border-slate-200 dark:border-slate-800 bg-slate-100/50 dark:bg-slate-800/20 flex flex-col items-center gap-2">
         {imagePreview ? (
           <div className="relative group w-full">

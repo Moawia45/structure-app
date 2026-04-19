@@ -44,6 +44,8 @@ const useStructureStore = create((set, get) => ({
   // ===== RESULTS =====
   results: null,
   hasResults: false,
+  showSFD: false,
+  showBMD: false,
 
   // ===== HISTORY (undo/redo) =====
   history: [],
@@ -58,10 +60,10 @@ const useStructureStore = create((set, get) => ({
       case 'truss': analysisType = 'truss'; break;
       default: analysisType = 'moment_only';
     }
-    return { structureType: type, analysisType, results: null, hasResults: false };
+    return { structureType: type, analysisType, results: null, hasResults: false, showSFD: false, showBMD: false };
   }),
 
-  setAnalysisType: (type) => set({ analysisType: type, results: null, hasResults: false }),
+  setAnalysisType: (type) => set({ analysisType: type, results: null, hasResults: false, showSFD: false, showBMD: false }),
 
   // ===== ACTIONS: Units =====
   setUnitSystem: (system) => set({
@@ -187,6 +189,8 @@ const useStructureStore = create((set, get) => ({
       set({
         results,
         hasResults: true,
+        showSFD: false,
+        showBMD: false,
         isAnalyzing: false,
         activeTab: 'results',
         error: null,
@@ -203,6 +207,8 @@ const useStructureStore = create((set, get) => ({
   setActiveTab: (tab) => set({ activeTab: tab }),
   setActiveInputTab: (tab) => set({ activeInputTab: tab }),
   setCanvasTool: (tool) => set({ canvasTool: tool }),
+  toggleSFD: () => set(state => ({ showSFD: !state.showSFD })),
+  toggleBMD: () => set(state => ({ showBMD: !state.showBMD })),
 
   toggleTheme: () => set((state) => {
     const newTheme = state.theme === 'dark' ? 'light' : 'dark';

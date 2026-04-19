@@ -6,6 +6,7 @@
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const GROQ_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
+const ENV_API_KEY = import.meta.env.VITE_GROQ_API_KEY;
 
 /**
  * Analyze a structural sketch image using Groq AI
@@ -13,9 +14,9 @@ const GROQ_MODEL = 'meta-llama/llama-4-scout-17b-16e-instruct';
  * @param {string} apiKey - Groq API key
  * @returns {Object} Parsed structure data (nodes, elements, loads)
  */
-export async function analyzeSketch(base64Image, apiKey) {
+export async function analyzeSketch(base64Image, apiKey = ENV_API_KEY) {
   if (!apiKey) {
-    throw new Error('Groq API key is required for sketch analysis. Please enter your API key in settings.');
+    throw new Error('Groq API key is missing. Please set VITE_GROQ_API_KEY in your .env file.');
   }
 
   const response = await fetch(GROQ_API_URL, {
@@ -146,9 +147,9 @@ export function fileToBase64(file) {
  * @param {string} apiKey - Groq API key
  * @returns {string} AI Response
  */
-export async function askAboutDiagram(base64Image, question, apiKey) {
+export async function askAboutDiagram(base64Image, question, apiKey = ENV_API_KEY) {
   if (!apiKey) {
-    throw new Error('Groq API key is required. Please enter your API key in settings.');
+    throw new Error('Groq API key is missing. Please set VITE_GROQ_API_KEY in your .env file.');
   }
 
   const response = await fetch(GROQ_API_URL, {
@@ -165,7 +166,18 @@ export async function askAboutDiagram(base64Image, question, apiKey) {
           content: [
             {
               type: 'text',
-              text: `You are a structural engineering assistant. Look at the provided structural diagram and answer the following question: ${question}`
+              text: `You are a structural engineering assistant. Look at the provided structural diagram and answer the following question: ${question}
+
+IMPORTANT ADDITIONAL INSTRUCTION:
+Whether the user explicitly asks for it or not, you MUST also analyze the image and append a valid JSON object representing the structure at the very end of your response. 
+The JSON must be enclosed in \`\`\`json and \`\`\` tags and follow this EXACT structure:
+{
+  "structureType": "beam", // or "frame" or "truss"
+  "nodes": [{"id": 1, "x": 0, "y": 0, "support": "pin"}], // supports: free, pin, roller, fixed
+  "elements": [{"id": 1, "i": 1, "j": 2, "E": 29000, "I": 100, "A": 10}],
+  "loads": [{"id": 1, "type": "point_load", "node_id": 2, "magnitude": 10, "direction": "down"}] // type: point_load, UDL, triangular_load, moment. direction: down, up, left, right.
+}
+If a load is on an element, use "element_id" and "a" (distance from near end) instead of "node_id". For UDL, use "a" and "b". Estimate coordinates based on proportions. Default E=29000, I=100, A=10.`
             },
             {
               type: 'image_url',
@@ -176,7 +188,7 @@ export async function askAboutDiagram(base64Image, question, apiKey) {
           ]
         }
       ],
-      max_tokens: 1000,
+      max_tokens: 2000,
       temperature: 0.2,
     }),
   });
